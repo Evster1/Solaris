@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Interactive Fantasy Map with Info Cards - Fixed</title>
+<style>
+html,body {
+  height:100%;
+  margin:0;
+  background:rgba(61, 81, 90);
+  font-family:'Segoe UI','Tahoma','Geneva','Verdana','sans-serif';
+  overflow:hidden;
+}
+
+.combined-glow {
+  position: absolute;
+  pointer-events: none;      /* clicks pass through */
+  box-shadow: 0 0 20px 8px gold;
+  border-radius: 8px;
+  z-index: 250;              /* just below the cards */
+  transition: left 0.1s, top 0.1s, width 0.1s, height 0.1s; /* smooth follow */
+}
+
+
+/* ▼=====▼ ROOT VARIABLES ▼=====▼ */
+:root {
+  --BackColor: white; /* Used for active buttons background */
+  --CardHeight: 395px;
+  --HeaderHeight: 40px;
+  --BtnPad: 5px;
+  --BtnGap: 5px;
+}
+
+/* ▼=====▼ MAP CONTAINER ▼=====▼ */
+#map-container {
+  position: absolute;
+  width: 1280px;
+  height: 960px;
+  background: url('Solaris.jpg') no-repeat center center;
+  background-size: contain;
+  border: 2px solid #333;
+  cursor: grab;
+  user-select: none;
+  transform-origin: top left;
+  z-index: 10;
+}
+
+/* ▼=====▼ MAP LABEL ▼=====▼ */
+.map-label {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.4);
+  color: gold;
+  padding: 3px 6px;
+  border: 1px solid gold;
+  border-radius: 4px;
+  font-size: 8px;
+  font-weight: bold;
+  pointer-events: none;
+  z-index: 30;
+}
+
+/* ▼=====▼ MAP ICONS ▼=====▼ */
+.map-icon {
+  position: absolute;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: filter 0.3s ease;
+  z-index: 20;
+  pointer-events: auto; /* Ensure clicks still work */
+  -webkit-user-drag: none; /* Chrome, Safari */
+  -moz-user-drag: none;    /* Firefox */
+  -o-user-drag: none;      /* Opera */
+  user-drag: none;         /* Standard */
+}
+
+.map-icon:hover {
+  filter: drop-shadow(0 0 8px gold);
+}
+
+/* ▼=====▼ INFO CARD ▼=====▼ */
+.info-card {
+  position: absolute;
+  background: rgba(255,255,255,0.95);
+  color: #000;
+  border-radius: 8px;
+  width: 300px;
+  height: var(--CardHeight);
+  overflow: hidden;               /* hide overflow content */
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  transform-origin: top left;
+}
+
+/* ▼=====▼ INFO CARD: HEADER ▼=====▼ */
+.info-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  color: white;
+  padding-left: 10px;
+  background-color: rgba(211, 175, 202);
+  border-bottom: 2px solid gold;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+  height: var(--HeaderHeight);
+		box-sizing: border-box;
+}
+
+.info-header h3 {
+  margin:0;
+  font-size:18px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
+.card-subtitle {
+  font-size: 0.8em;
+  color: white;
+  font-weight: bold;
+}
+
+.info-close {
+  position: absolute;
+  right:  10px;
+  cursor:pointer;
+  font-size:20px;
+  color: white;
+  transition:color .2s;
+}
+
+.info-close:hover {
+  color: blue;
+}
+
+/* ▼=====▼ INFO CARD: BODY ▼=====▼ */
+.info-body {
+	flex: 1 1 auto;
+  display:flex;
+  flex-direction:column;
+	justify-content: flex-end;
+  --body-padding: 10px;
+  padding: var(--body-padding); 
+  gap:10px;
+  background-color: transparent;
+}
+
+.info-left {
+  height:180px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  overflow:hidden;
+}
+
+.info-left img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  border-radius:4px;
+}
+
+.info-right {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  text-align:center;
+  gap:10px;
+}
+
+/* ▼=====▼ INFO CARD: MAIN BUTTONS ▼=====▼ */
+.info-main-buttons {
+  display:flex;
+  justify-content:center;
+  gap:6px;
+}
+
+.info-main-buttons button {
+  padding:5px;
+  font-size:14px;
+  cursor:pointer;
+  border-radius:4px;
+  background: rgba(255, 255, 255);
+  border: 1px solid #ccc;
+	white-space: nowrap;        /* prevents wrapping */
+  display: inline-block;      /* shrink-to-fit */
+  width: max-content;         /* expand button to fit content */
+  box-sizing: border-box;
+}
+
+.info-main-buttons button.active {
+  background: var(--BackColor);
+  color:#fff;
+  box-shadow: inset 2px 2px 4px rgba(0,0,0,0.3);
+  border: 1px solid gold;
+}
+
+.info-main-buttons button:hover {
+  background: var(--BackColor);
+  color: white;
+  border: 1px solid gold;
+}
+
+/* ▼=====▼ INFO CARD: DETAILS BOX ▼=====▼ */
+.info-details {
+  position: relative;
+  margin-top: 0px;
+  border: 2px solid gold;
+  border-radius: 4px;
+  box-sizing: border-box;
+  z-index: 1;
+  height: 74px;
+  flex-shrink: 0;
+	flex: 0 0 auto;
+  overflow: hidden;
+  background-color: rgba(255,255,255,1);
+}
+
+.info-details .paper-layer {
+  position: absolute;
+  inset: 0;
+  background: url('paper.png') center/cover no-repeat;
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 2px;
+}
+
+.info-details .scroll-content {
+  position: relative;
+	padding: 0px 4px 2px 4px;
+  z-index: 1;
+  height: 100%;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  color: #000;
+  overflow-y: auto;
+  text-align: left;
+	font-size: 12px;
+	line-height: 14px;
+}
+
+/* ▼=====▼ INFO CARD: DETAILS BOX: SCROLLBAR ▼=====▼ */
+.info-details .scroll-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.info-details .scroll-content::-webkit-scrollbar-track {
+  background: white;
+}
+
+.info-details .scroll-content::-webkit-scrollbar-thumb {
+  background: gold;
+  border-radius: 4px;
+  border:2px solid rgba(240,230,210,1);
+}
+
+.info-details .scroll-content {
+  scrollbar-color: gold rgba(255, 215, 0, 0.15); /* thumb + track colors */
+  scrollbar-width: thin;
+}
+
+
+.info-details .scroll-content {
+  position: relative;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0px 4px 2px 4px;
+  font-size: 12px;
+  line-height: 14px;
+  color: #000;
+  text-align: center;
+
+  display: flex;             /* enable centering */
+  align-items: center;       /* vertical center */
+  justify-content: center;   /* horizontal center */
+  overflow: hidden;          /* no scrollbar by default */
+  white-space: pre-wrap;
+}
+
+/* Active state: allow scrolling content */
+.info-details .scroll-content.active {
+  align-items: flex-start;   /* top-align for multiple lines */
+  justify-content: flex-start;
+  overflow-y: auto;
+  text-align: left;
+}
+
+/* ▼=====▼ INFO CARD: FOOTER ▼=====▼ */
+.info-footer {
+	flex-shrink: 0;
+  background-color: rgba(211, 175, 202);
+  border-top: 2px solid gold;
+  text-align: center;
+  height: 74px;
+	padding: 8px 10px;
+  color: #000;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  box-shadow: 0 -3px 6px rgba(0,0,0,0.3);
+}
+
+/* ▼=====▼ SIDE LIST ▼=====▼ */
+.side {
+  position: absolute;
+  background: rgba(255,255,255,0.95);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+	max-height:175px;
+  font-size: 14px;
+  width: max-content;
+  overflow: hidden;
+  z-index: 310;
+  max-height: var(--CardHeight);
+}
+
+/* ▼=====▼ SIDE LIST: HEADER ▼=====▼ */
+.side-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--BackColor);
+  border-bottom: 2px solid gold;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+  flex-shrink: 0;
+  height: 40px;
+  min-height: 40px;
+  width: 100%;
+  overflow: hidden;           /* prevents taller emojis from bleeding out */
+	box-sizing: border-box;
+}
+
+.side-header h3 {
+  margin:0;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  justify-content:center;
+  height:100%;
+}
+
+.side-header .emoji {
+  position: absolute;
+  font-size: 20px;   /* consistent size */
+  line-height: 1;    /* prevents clipping */
+  display: inline-block;
+}
+
+.side-header .side-close {
+  position: absolute;
+  right: 10px;
+  font-size: 20px;
+  color: white;
+  transition: color 0.2s;
+  cursor: pointer;
+}
+
+.side-header .side-close:hover {
+  color: blue;
+}
+
+/* ▼=====▼ SIDE LIST: CONTENT ▼=====▼ */
+.side-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--BtnGap);
+  padding: var(--BtnPad) 12px;
+  overflow-y: auto;
+  box-sizing: border-box;
+
+  scrollbar-color: gold transparent;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+
+  min-width: 70px;         /* minimum width of the side list */
+}
+
+/* ▼=====▼ SIDE LIST: BUTTONS ▼=====▼ */
+.side-content button {
+  display: inline-block;      /* shrink-to-fit content */
+  flex: 0 0 auto;             /* prevent flex shrink/grow */
+  height: 30px;
+  padding: 2px 8px;           /* horizontal padding */
+  text-align: left;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  margin: 0;
+  box-sizing: border-box;
+
+  white-space: nowrap;        /* prevent text wrapping */
+  width: max-content;         /* expand button to fit text exactly */
+}
+
+/*	MaxHeight_content = CardHeight - HeaderHeight - 2 * BtnPad
+
+			ButtonHeight = (MaxHeight_content - (NumberOfButtons - 1) * BtnGap) / NumberOfButtons
+								*/
+
+.side-content button.active-item {
+  background: var(--BackColor);
+  border: 1px solid gold;
+  color: white;
+  box-shadow: inset 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+.side-content button:hover {
+  background: var(--BackColor);
+  color: white;
+  border: 1px solid gold;
+}
+
+/* ▼=====▼ SIDE LIST: SCROLLBAR ▼=====▼ */
+.side-content::-webkit-scrollbar {
+  width:8px;
+}
+
+.side-content::-webkit-scrollbar-thumb {
+  background: gold; 											/* default, overwritten dynamically */
+  border-radius: 2px;
+  border: 2px solid rgba(255,215,0,1);	  /* default, overwritten dynamically */
+}
+
+/* Firefox defaults */
+.side-content {
+  scrollbar-color: gold rgba(255, 215, 0, 0.5); /* default, overwritten dynamically */
+  scrollbar-width: thin;
+	scrollbar-gutter: stable;
+
+</style>
+
+</head>
+<body>
+<div id="glow-layer"></div>
+<div id="map-container"></div>
+<div class="map-label">Map & World by Shaniah<br>
+Additional Character Art by Molly<br>
+Interactivity & Assembly by Evan
+</div>
+
+<script>
+/* ▼=====▼ UTILITY FUNCTION: COLOR ADJUSTMENT ▼=====▼ */
+// Lighten or darken an RGBA color and optionally adjust alpha
+function shadeAlpha(color, percent, alphaAdjust=0){
+  const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/);
+  if(!m) return color;
+  let r=parseInt(m[1]), g=parseInt(m[2]), b=parseInt(m[3]), a=m[4]!==undefined?parseFloat(m[4]):1;
+  r = Math.min(255, Math.max(0, r + percent));
+  g = Math.min(255, Math.max(0, g + percent));
+  b = Math.min(255, Math.max(0, b + percent));
+  a = Math.min(1, Math.max(0, a + alphaAdjust));
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+
+/* ▼=====▼ DATA: LOCATIONS ARRAY ▼=====▼ */
+// Contains all map locations, icons, coordinates, images, and info sections
+const locations = [
+  {
+    id: 'Xandria',
+    name: 'Xandria',
+    subtitle: ' - Tiefling Town',
+    x: 866, y: 799,
+    icon: 'Xandria.png', width: 130, height: 81,
+    image: 'Tiefling.png',
+    color: 'rgba(211, 175, 202, 1)',
+    details: {
+      A: { label: "😃", items: [
+        { name: 'test', img: '', info: 'Test \nLine 2 \nLine 3\nLine 4 \nLine 5 \nLine 6 \nLine 7' },
+        { name: 'test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+		{ name: 'Test', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4' },
+      ]},
+      B: { label: "🗺️", items: [     
+        { name: "test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+        { name: "Test", img: '', info: '' },
+
+	]},
+      C: { label: "📜", items: [
+        { name: '', img: '', info: '' }
+      ]}
+    }
+  },
+  {
+    id: 'Eldamar',
+    name: 'Eldamar',
+    subtitle: ' - Elven Estate',
+    x: 365, y: 477,
+    icon: 'Eldamar.png', width: 128, height: 81,
+    image: 'Elf.png',
+    color: 'rgba(68,107,88,1)',
+    details: {
+      A: { label: "😃", items: [
+        { name: 'Elves', img: '', info: 'Test\nLine 2\nLine 3 \nLine 4 \nLine 5 \nLine 6' }
+      ]},
+      B: { label: "🗺️", items: [
+        { name: "Haven't been", img: '', info: 'Dense magical woods' }
+      ]},
+      C: { label: "📜", items: [
+        { name: 'Ancient Tome', img: '', info: 'Oldest records of Eldamar' }
+      ]}
+    }
+  },
+  {
+    id: 'Vol Dorma',
+    name: 'Vol Dorma',
+    subtitle: ' - Dwarven Domicile',
+    x: 685, y: 336,
+    icon: 'Vol Dorma.png', width: 175, height: 98,
+    image: 'Dwarf.png',
+    color: 'rgba(96,100,86,1)',
+    details: {
+      A: { label: "😃", items: [
+        { name: 'Elder Arwen', img: '', info: 'Leader of Vol Dorma' }
+      ]},
+      B: { label: "🗺️", items: [
+        { name: 'Elven Forest', img: '', info: 'Dense magical woods' }
+      ]},
+      C: { label: "📜", items: [
+        { name: 'Ancient Tome', img: '', info: 'Oldest records of Vol Dorma' }
+      ]}
+    }
+  },
+  {
+    id: 'Amaroch',
+    name: 'Amaroch',
+    subtitle: ' - Dragonborn Domain',
+    x: 263, y: 279,
+    icon: 'Amaroch.png', width: 131, height: 63,
+    image: 'Dragonborn.png',
+	color: 'rgba(139,185,219,1)',
+    details: {
+      A: { label: "😃", items: [
+        { name: 'Elder Arwen', img: '', info: 'Leader of Amaroch' }
+      ]},
+      B: { label: "🗺️", items: [
+        { name: 'Elven Forest', img: '', info: 'Dense magical woods' }
+      ]},
+      C: { label: "📜", items: [
+        { name: 'Ancient Tome', img: '', info: 'Oldest records of Amaroch' }
+      ]}
+    }
+  },
+  {
+    id: 'Tevinter',
+    name: 'Tevinter',
+    subtitle: ' - Human Hold',
+    x: 892, y: 239,
+    icon: 'Tevinter.png', width: 130, height: 73,
+    image: 'Human.png',
+    color: 'rgba(165,121,74,1)',
+    details: {
+      A: { label: "😃", items: [
+        { name: 'Elder Arwen', img: '', info: 'Leader of Tevinter' }
+      ]},
+      B: { label: "🗺️", items: [
+        { name: 'Elven Forest', img: '', info: 'Dense magical woods' }
+      ]},
+      C: { label: "📜", items: [
+        { name: 'Ancient Tome', img: '', info: 'Oldest records of Tevinter' }
+      ]}
+    }
+  },
+  {
+    id: 'Denerim',
+    name: 'Denerim',
+    subtitle: ' - Drow Depths',
+    x: 613, y: 510,
+    icon: 'Denerim.png', width: 126, height: 65,
+    image: 'Drow.png',
+    color: 'rgba(50,50,50,1)',
+	subtitleStyle: { color: 'white' },
+    details: {
+      A: { label: "😃", items: [
+        { name: 'Elder Arwen', img: '', info: 'Leader of Denerim' }
+      ]},
+      B: { label: "🗺️", items: [
+        { name: 'Elven Forest', img: '', info: 'Dense magical woods' }
+      ]},
+      C: { label: "📜", items: [
+        { name: 'Ancient Tome', img: '', info: 'Oldest records of Denerim' }
+      ]}
+    }
+  },
+  {
+    id: 'Ventus',
+    name: 'Ventus',
+    subtitle: ' - Metropolitan Meltingpot',
+    x: 866, y: 536,
+    icon: 'Ventus.png', width: 128, height: 63,
+    image: 'Ventus.png',
+    color: 'rgba(157,78,83,1)',
+    details: {
+      A: { label: "😃", items: [
+        { name: 'Elder Arwen', img: '', info: 'Leader of Ventus' }
+      ]},
+      B: { label: "🗺️", items: [
+        { name: 'Elven Forest', img: '', info: 'Dense magical woods' }
+      ]},
+      C: { label: "📜", items: [
+        { name: 'Ancient Tome', img: '', info: 'Oldest records of Ventus' }
+      ]}
+    }
+  },
+];
+
+/* ▼=====▼ DOM ELEMENTS & STATE VARIABLES ▼=====▼ */
+// Map container and currently open cards/lists
+const mapContainer = document.getElementById('map-container');
+let openCard = null;
+let openSideList = null;
+let openLocationId = null; // track which location's card is open
+
+/* ▼=====▼ ICON CREATION & INTERACTION ▼=====▼ */
+// Add location icons to the map and handle click/drag events
+locations.forEach(loc => {
+  const icon = document.createElement('img');
+  icon.src = loc.icon;
+  icon.alt = loc.name;
+  icon.className = 'map-icon';
+  icon.style.width = loc.width + 'px';
+  icon.style.height = loc.height + 'px';
+  icon.style.left = loc.x + 'px';
+  icon.style.top = loc.y + 'px';
+
+  let dragStartX = 0, dragStartY = 0, dragged = false;
+
+
+  // Track drag start
+  icon.addEventListener('mousedown', e => {
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    dragged = false;
+  });
+
+  // Detect dragging while moving
+  icon.addEventListener('mousemove', e => {
+    if (Math.abs(e.clientX - dragStartX) > 5 || Math.abs(e.clientY - dragStartY) > 5) {
+      dragged = true;
+    }
+  });
+
+  // Only open info card if it's not dragging
+  icon.addEventListener('mouseup', e => {
+    if (!dragged) {
+      if (openLocationId === loc.id) {
+        if (openCard) openCard.remove();
+        if (openSideList) openSideList.remove();
+        openCard = openSideList = null;
+        openLocationId = null;
+        return;
+      }
+
+      openLocationId = loc.id;
+      if (openCard) openCard.remove();
+      if (openSideList) openSideList.remove();
+      openCard = openSideList = null;
+
+      openInfoCard(loc);
+    }
+  });
+
+  mapContainer.appendChild(icon);
+});
+
+
+/* ▼=====▼ MAP PANNING STATE & FUNCTIONS ▼=====▼ */
+let isDragging=false,startX=0,startY=0,scale=1;
+let translateX=(window.innerWidth-1280)/2,translateY=(window.innerHeight-960)/2;
+
+function updateTransform() {
+  mapContainer.style.transform=`translate(${translateX}px, ${translateY}px) scale(${scale})`;
+}
+
+
+/* ▼=====▼ MAP DRAG EVENTS ▼=====▼ */
+mapContainer.addEventListener('mousedown', e => {
+if(e.target.closest('.button')) return; // Only prevent dragging if the click started on a button card
+  // START DRAGGING
+	isDragging = true;
+	startX = e.clientX;
+	startY = e.clientY;
+	mapContainer.style.cursor = 'grabbing';
+	});
+
+// stop dragging on mouse button release
+window.addEventListener('mouseup',()=>{
+	isDragging=false;
+	mapContainer.style.cursor='grab';
+	});
+	
+// Drag movement
+window.addEventListener('mousemove',e=>{
+	if(!isDragging) return;
+	translateX += e.clientX - startX;
+	translateY += e.clientY - startY;
+	startX = e.clientX;
+	startY = e.clientY;
+	updateTransform();
+	positionSideList();
+	 
+  
+  if(openCard && openSideList){
+	const cardX=parseFloat(openCard.style.left);
+	const cardY=parseFloat(openCard.style.top);
+	openSideList.style.left=(cardX + openCard.offsetWidth/2 + 10)+'px';
+	openSideList.style.top=cardY+'px';
+	}
+  
+  positionSideList();
+	 
+
+});
+
+// Zooming with mouse wheel
+window.addEventListener('wheel', e=>{
+	if (e.target.closest('.scroll-content') || e.target.closest('.side-content')) return;
+	e.preventDefault();
+	
+	const rect=mapContainer.getBoundingClientRect();
+	const offsetX=e.clientX-rect.left;
+	const offsetY=e.clientY-rect.top;
+	const prevScale=scale;
+	const zoom=Math.exp(-e.deltaY*0.1/100);
+	scale=Math.min(Math.max(0.4, scale*zoom),3);
+	translateX-=(offsetX/prevScale - offsetX/scale);
+	translateY-=(offsetY/prevScale - offsetY/scale);
+	updateTransform();
+},{passive:false});
+
+updateTransform();
+
+
+
+/* ▼=====▼ FUNCTION: OPEN INFO CARD ▼=====▼ */
+// Creates and populates the info card for a location
+// Creates and populates the info card for a location (REPLACEMENT)
+function openInfoCard(loc) {
+  // Remove any previous card/side list
+  if (openCard) openCard.remove();
+  if (openSideList) openSideList.remove();
+  openCard = openSideList = null;
+
+  // Create the card
+  const card = document.createElement('div');
+  card.className = 'info-card';
+  card.style.backgroundColor = shadeAlpha(loc.color, -40, -0.3);
+  card.setAttribute('data-location', loc.id);
+  mapContainer.appendChild(card);
+  openCard = card;
+	 
+
+  // Position the card
+  card.style.left = `${loc.x}px`;
+  card.style.top = `${loc.y - 444}px`;
+  card.style.transform = 'translateX(-50%)';
+
+  // Inner HTML
+  card.innerHTML = `
+    <div class="info-header" style="background-color:${loc.color}">
+      <h3 class="card-title">${loc.name}<span class="card-subtitle">${loc.subtitle||''}</span></h3>
+      <div class="info-close" title="Close">&times;</div>
+    </div>
+    <div class="info-body">
+      <div class="info-left"><img src="${loc.image}" alt="${loc.name}" /></div>
+      <div class="info-right"></div>
+      <div class="info-main-buttons">
+        <button data-type="A">😃 Residents</button>
+        <button data-type="B">🗺️ Regions</button>
+        <button data-type="C">📜 Records</button>
+      </div>
+    </div>
+    <div class="info-footer" style="background-color:${loc.color}">
+      <div class="info-details">
+        <div class="paper-layer"></div>
+        <div class="scroll-content">Select a category.</div>
+      </div>
+    </div>
+  `;
+
+  // References
+  const closeBtn = card.querySelector('.info-close');
+  const img = card.querySelector('.info-left img');
+  const scrollContent = card.querySelector('.scroll-content');
+
+  // Prevent image dragging
+  img.addEventListener('dragstart', e => e.preventDefault());
+
+		
+  // ---------- SCROLLBAR COLORS ----------
+  const trackColor = loc.color.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/, 'rgba($1,$2,$3,1)');
+  const thumbColor = 'gold';
+
+  // Firefox
+  scrollContent.style.scrollbarColor = `${thumbColor} ${trackColor}`;
+  scrollContent.style.scrollbarWidth = 'thin';
+
+  // Chromium / Opera
+  const styleId = 'scrollbar-style-' + loc.id;
+  let styleEl = document.getElementById(styleId);
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `
+    .info-card[data-location="${loc.id}"] .scroll-content::-webkit-scrollbar {
+      width: 8px;
+    }
+    .info-card[data-location="${loc.id}"] .scroll-content::-webkit-scrollbar-track {
+      background-color: ${trackColor};
+    }
+    .info-card[data-location="${loc.id}"] .scroll-content::-webkit-scrollbar-thumb {
+      background-color: ${thumbColor};
+      border-radius: 4px;
+      border: 2px solid ${trackColor};
+    }
+  `;
+
+  // ---------- DEFAULT TEXT ----------
+  scrollContent.textContent = "Select a category.";
+  scrollContent.classList.remove('active');
+
+  // ---------- CLOSE BUTTON ----------
+	closeBtn.addEventListener('click', () => {
+		if (openSideList) { openSideList.remove(); openSideList = null; }
+		card.remove();
+		openCard = openSideList = null;
+		 
+	});
+
+
+  // ---------- MAIN BUTTONS ----------
+  card.querySelectorAll('.info-main-buttons button').forEach(mainBtn => {
+    mainBtn.style.setProperty('--BackColor', loc.color);
+
+    mainBtn.addEventListener('click', () => {
+      const type = mainBtn.dataset.type;
+      const active = mainBtn.classList.contains('active');
+
+      if (active) {
+			mainBtn.classList.remove('active');
+        if (openSideList) { openSideList.remove(); openSideList = null; }
+        scrollContent.textContent = "Select a category.";
+        scrollContent.classList.remove('active');
+				 
+        return;
+      }
+
+      card.querySelectorAll('.info-main-buttons button').forEach(b => b.classList.remove('active'));
+      mainBtn.classList.add('active');
+
+      createSideList(loc, type, card, scrollContent);
+			 
+    });
+  });
+}
+
+
+	
+function positionSideList() {
+    if (!openSideList || !openCard) return;
+
+    const cardRect = openCard.getBoundingClientRect();
+    const mapRect = mapContainer.getBoundingClientRect();
+
+    const gap = 5; // px gap between card and side list
+    openSideList.style.left = (parseFloat(openCard.style.left) + openCard.offsetWidth/2 + gap) + 'px';
+    openSideList.style.top = openCard.style.top; // align top with card
+}
+
+
+    /* ▼=====▼ HELPER: CREATE SIDE LIST ▼=====▼ */
+    function createSideList(loc, type, card, scrollContent) {
+  // remove any existing side
+  if (openSideList) openSideList.remove();
+
+  const category = loc.details[type];
+  if (!category) return;
+
+  const side = document.createElement('div');
+  side.className = 'side';
+  side.style.backgroundColor = shadeAlpha(loc.color, -40, -0.3);
+  side.setAttribute('data-location', loc.id);
+
+	mapContainer.appendChild(side);
+  openSideList = side;
+	 
+
+  // simple positioning helper (keeps side next to card)
+  function positionSide() {
+    if (!openCard || !openSideList) return;
+    const gap = 5;
+    openSideList.style.left = (parseFloat(openCard.style.left) + openCard.offsetWidth / 2 + gap) + 'px';
+    openSideList.style.top = openCard.style.top;
+  }
+  positionSide();
+
+  // header
+  const header = document.createElement('div');
+  header.className = 'side-header';
+  header.style.setProperty('--BackColor', loc.color);
+  header.innerHTML = `<h3><span class="emoji">${category.label}</span></h3><div class="side-close">&times;</div>`;
+  side.appendChild(header);
+
+const content = document.createElement('div');
+content.className = 'side-content';
+side.appendChild(content);
+
+// ------------------ DYNAMIC SCROLLBAR COLORS ------------------
+const trackColor = loc.color.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/, 'rgba($1,$2,$3,1)');
+const thumbColor = 'gold';
+
+// Firefox
+content.style.scrollbarColor = `${thumbColor} ${trackColor}`;
+content.style.scrollbarWidth = 'thin';
+
+// Chromium / Opera
+const styleId = 'side-scrollbar-style-' + loc.id;
+let styleEl = document.getElementById(styleId);
+if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+}
+styleEl.textContent = `
+    .side[data-location="${loc.id}"] .side-content::-webkit-scrollbar {
+        width: 8px;
+    }
+    .side[data-location="${loc.id}"] .side-content::-webkit-scrollbar-track {
+        background-color: ${trackColor};
+    }
+    .side[data-location="${loc.id}"] .side-content::-webkit-scrollbar-thumb {
+        background-color: ${thumbColor};
+        border-radius: 4px;
+        border: 2px solid ${trackColor};
+    }
+`;
+
+
+	
+
+  // build buttons
+  category.items.forEach(item => {
+    const btn = document.createElement('button');
+    btn.textContent = item.name || '(empty)';
+    btn.style.setProperty('--BackColor', loc.color);
+
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('active-item')) {
+        btn.classList.remove('active-item');
+        scrollContent.textContent = "Select a category.";
+        scrollContent.classList.remove('active');
+        return;
+      }
+
+      // activate this one, deactivate others
+      content.querySelectorAll('button').forEach(b => b.classList.remove('active-item'));
+      btn.classList.add('active-item');
+
+      // set details content and enable scrolling if needed
+      scrollContent.textContent = item.info || '(No details)';
+      // allow scrolling only when content length warrants it (class drives css)
+      scrollContent.classList.add('active');
+    });
+
+    content.appendChild(btn);
+  });
+
+  // close handler - single listener
+  const closeEl = header.querySelector('.side-close');
+  closeEl.addEventListener('click', () => {
+  if (openSideList) { openSideList.remove(); openSideList = null; }
+	 
+  // reset details box as soon as side is closed
+  if (scrollContent) {
+    scrollContent.textContent = "Select a category.";
+    scrollContent.classList.remove('active');
+  }
+	 
+});
+
+
+  // reposition while dragging the map (keeps it visible)
+  // we reuse the global positionSideList function by updating openSideList
+  positionSideList(); // if you keep your existing positionSideList helper, this will align it
+	 
+}
+/* ===== Side List ===== */
+
+/* ▼=====▼ COMBINED GLOW AUTO-UPDATING ▼=====▼ */
+/* ▼=====▼ COMBINED GLOW AUTO-UPDATING (ZOOM-PROOF) ▼=====▼ */
+/* ▼=====▼ COMBINED GLOW WITH ZOOM-FIXED POSITION ▼=====▼ */
+(function() {
+  const mapContainer = document.getElementById('map-container');
+
+  // create glow element
+  let glow = document.createElement('div');
+  glow.className = 'combined-glow';
+  glow.style.position = 'absolute';
+  glow.style.pointerEvents = 'none';
+  glow.style.background = 'rgba(212,175,55,0.2)';
+  glow.style.boxShadow = '0 0 15px 5px rgba(212,175,55,0.6)';
+  glow.style.borderRadius = '8px';
+  glow.style.zIndex = '250';
+  glow.style.transition = 'left 0.1s, top 0.1s, width 0.1s, height 0.1s';
+  mapContainer.appendChild(glow);
+
+function updateGlow() {
+  if (!openCard && !openSideList) {
+    glow.style.width = '0px';
+    glow.style.height = '0px';
+    return;
+  }
+
+  let rects = [];
+  if (openCard) rects.push(openCard.getBoundingClientRect());
+  if (openSideList) rects.push(openSideList.getBoundingClientRect());
+
+  const mapRect = mapContainer.getBoundingClientRect();
+
+  // small adjustment so glow hugs the card edges
+  
+  const left = (Math.min(...rects.map(r => r.left)) - mapRect.left) / scale;
+  const top = (Math.min(...rects.map(r => r.top)) - mapRect.top) / scale;
+  const right = (Math.max(...rects.map(r => r.right)) - mapRect.left) / scale;
+  const bottom = (Math.max(...rects.map(r => r.bottom)) - mapRect.top) / scale;
+
+  glow.style.left = (left - 1) + 'px';
+  glow.style.top = (top - 1) + 'px';
+  glow.style.width = (right - left - 1) + 'px';
+  glow.style.height = (bottom - top - 1) + 'px';
+}
+
+
+
+  function loop() {
+    updateGlow();
+    requestAnimationFrame(loop);
+  }
+
+  requestAnimationFrame(loop);
+
+  // watch for DOM changes so glow updates if card/side is added or removed
+  const observer = new MutationObserver(loop);
+  observer.observe(mapContainer, { childList: true, subtree: true });
+})();
+
+/* ▼=====▼ PREVENT IMAGE DRAGGING ON ALL IMAGES ▼=====▼ */
+document.querySelectorAll('img').forEach(img => {
+  img.addEventListener('dragstart', e => e.preventDefault());
+});
+
+</script>
+</body>
+</html>
